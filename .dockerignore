@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+__pycache__
+.pytest_cache
+*.py[cod]
+*.sqlite3
+local_data
+.env
+frontend/node_modules
+frontend/dist
+frontend/*.tsbuildinfo
+frontend/coverage
