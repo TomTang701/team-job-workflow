@@ -1,0 +1,154 @@
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from app.database import configure_database, init_db
+from app.main import app
+
+
+def make_client(tmp_path: Path) -> TestClient:
+    configure_database(f"sqlite:///{tmp_path / 'test.sqlite3'}")
+    init_db()
+    return TestClient(app)
+
+
+def register(client: TestClient, email: str, password: str = "correct-horse-battery-staple") -> dict:
+    response = client.post("/api/auth/register", json={"email": email, "password": password})
+    assert response.status_code == 201
+    return response.json()
+
+
+def auth_headers(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_owner_can_create_workspace_and_member_cannot_read_another_workspace(tmp_path):
+    client = make_client(tmp_path)
+    owner = register(client, "owner@example.test")
+    stranger = register(client, "stranger@example.test")
+
+    workspace = client.post(
+        "/api/workspaces",
+        headers=auth_headers(owner["access_token"]),
+        json={"name": "Sanitized Internship Search"},
+    )
+    assert workspace.status_code == 201
+    workspace_id = workspace.json()["id"]
+
+    forbidden = client.get(f"/api/workspaces/{workspace_id}", headers=auth_headers(stranger["access_token"]))
+    assert forbidden.status_code == 403
+
+
+def test_member_can_track_application_status_tasks_and_comments(tmp_path):
+    client = make_client(tmp_path)
+    owner = register(client, "owner@example.test")
+    member = register(client, "member@example.test")
+    workspace = client.post("/api/workspaces", headers=auth_headers(owner["access_token"]), json={"name": "Search"}).json()
+
+    invited = client.post(
+        f"/api/workspaces/{workspace['id']}/members",
+        headers=auth_headers(owner["access_token"]),
+        json={"email": "member@example.test", "role": "member"},
+    )
+    assert invited.status_code == 201
+
+    application = client.post(
+        f"/api/workspaces/{workspace['id']}/applications",
+        headers=auth_headers(member["access_token"]),
+        json={"company": "Example Co", "job_title": "Backend Intern"},
+    )
+    assert application.status_code == 201
+    application_id = application.json()["id"]
+
+    moved = client.patch(
+        f"/api/applications/{application_id}/status",
+        headers=auth_headers(member["access_token"]),
+        json={"status": "interview"},
+    )
+    assert moved.status_code == 200
+    assert moved.json()["status"] == "interview"
+
+    task = client.post(
+        f"/api/applications/{application_id}/tasks",
+        headers=auth_headers(member["access_token"]),
+        json={"title": "Prepare system design notes"},
+    )
+    assert task.status_code == 201
+    comment = client.post(
+        f"/api/applications/{application_id}/comments",
+        headers=auth_headers(member["access_token"]),
+        json={"body": "Interview time confirmed with the team."},
+    )
+    assert comment.status_code == 201
+
+    details = client.get(f"/api/applications/{application_id}", headers=auth_headers(owner["access_token"]))
+    assert details.status_code == 200
+    assert details.json()["tasks"][0]["title"] == "Prepare system design notes"
+    assert details.json()["comments"][0]["body"] == "Interview time confirmed with the team."
+    assert any(activity["action"] == "status_changed" for activity in details.json()["activities"])
+
+
+def test_application_list_filters_searches_and_paginates_and_rejects_bad_token(tmp_path):
+    client = make_client(tmp_path)
+    owner = register(client, "owner@example.test")
+    workspace = client.post("/api/workspaces", headers=auth_headers(owner["access_token"]), json={"name": "Search"}).json()
+    for company, title in [("Acme", "Backend Intern"), ("Beta", "Frontend Intern"), ("Acme Labs", "Platform Intern")]:
+        created = client.post(
+            f"/api/workspaces/{workspace['id']}/applications",
+            headers=auth_headers(owner["access_token"]),
+            json={"company": company, "job_title": title},
+        )
+        assert created.status_code == 201
+    applications = client.get(
+        f"/api/workspaces/{workspace['id']}/applications",
+        headers=auth_headers(owner["access_token"]),
+        params={"search": "Acme", "page": 2, "page_size": 1},
+    )
+    assert applications.status_code == 200
+    assert applications.json()["total"] == 2
+    assert len(applications.json()["items"]) == 1
+
+    rejected = client.get(f"/api/workspaces/{workspace['id']}", headers=auth_headers("not-a-jwt"))
+    assert rejected.status_code == 401
+
+
+def test_member_can_mark_application_task_complete_and_activity_is_recorded(tmp_path):
+    client = make_client(tmp_path)
+    owner = register(client, "owner@example.test")
+    workspace = client.post("/api/workspaces", headers=auth_headers(owner["access_token"]), json={"name": "Search"}).json()
+    application = client.post(
+        f"/api/workspaces/{workspace['id']}/applications",
+        headers=auth_headers(owner["access_token"]),
+        json={"company": "Example Co", "job_title": "Backend Intern"},
+    ).json()
+    task = client.post(
+        f"/api/applications/{application['id']}/tasks",
+        headers=auth_headers(owner["access_token"]),
+        json={"title": "Prepare interview examples"},
+    ).json()
+
+    completed = client.patch(
+        f"/api/tasks/{task['id']}",
+        headers=auth_headers(owner["access_token"]),
+        json={"completed": True},
+    )
+
+    assert completed.status_code == 200
+    assert completed.json()["completed"] is True
+    details = client.get(f"/api/applications/{application['id']}", headers=auth_headers(owner["access_token"]))
+    assert any(activity["action"] == "task_completed" for activity in details.json()["activities"])
+
+
+def test_api_allows_local_vite_browser_origin(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.options(
+        "/api/auth/login",
+        headers={
+            "Origin": "http://127.0.0.1:5173",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:5173"

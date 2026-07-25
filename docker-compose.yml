@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: team_job_workflow
+      POSTGRES_USER: team_job_workflow
+      POSTGRES_PASSWORD: local-development-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U team_job_workflow -d team_job_workflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - workflow_postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    environment:
+      TJW_DATABASE_URL: postgresql+psycopg://team_job_workflow:local-development-only@db:5432/team_job_workflow
+      TJW_SECRET_KEY: local-docker-only-change-before-deployment
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+volumes:
+  workflow_postgres_data:
