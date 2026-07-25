@@ -57,6 +57,14 @@ pnpm test
 pnpm build
 ```
 
+To write a local, ignored evidence manifest for the complete acceptance gate (tests, build, Docker smoke, exact-commit CI, documentation, and sanitized seed data), run:
+
+```powershell
+.\scripts\record-verification-evidence.ps1
+```
+
+Use `-LocalOnly` only when the repository has not yet been pushed; it deliberately records `ci_passed: false`.
+
 ## Sanitized demo
 
 After migrating a local database, create only fake data:
