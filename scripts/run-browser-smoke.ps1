@@ -10,6 +10,16 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "Docker Desktop is required for the browser smoke test."
 }
 
+if (-not (Get-Command node.exe -ErrorAction SilentlyContinue)) {
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = "$machinePath;$userPath;$env:Path"
+}
+
+if (-not (Get-Command node.exe -ErrorAction SilentlyContinue)) {
+    throw "Node.js is required for the browser smoke test."
+}
+
 $pnpm = Get-Command pnpm.cmd -ErrorAction SilentlyContinue
 if ($null -eq $pnpm) {
     $pnpm = Get-Command pnpm -ErrorAction SilentlyContinue

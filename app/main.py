@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
@@ -35,23 +35,38 @@ bearer = HTTPBearer()
 VALID_STATUSES = {"saved", "applied", "interview", "offer", "rejected"}
 
 
+def normalize_required_text(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError("Value must contain non-whitespace characters.")
+    return normalized
+
+
 class Credentials(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=12, max_length=256)
+
+    _normalize_email = field_validator("email")(normalize_required_text)
 
 
 class WorkspaceInput(BaseModel):
     name: str = Field(min_length=2, max_length=160)
 
+    _normalize_name = field_validator("name")(normalize_required_text)
+
 
 class MembershipInput(BaseModel):
-    email: str
+    email: str = Field(min_length=3, max_length=320)
     role: str
+
+    _normalize_email = field_validator("email")(normalize_required_text)
 
 
 class ApplicationInput(BaseModel):
     company: str = Field(min_length=2, max_length=160)
     job_title: str = Field(min_length=2, max_length=160)
+
+    _normalize_fields = field_validator("company", "job_title")(normalize_required_text)
 
 
 class StatusInput(BaseModel):
@@ -61,6 +76,8 @@ class StatusInput(BaseModel):
 class TaskInput(BaseModel):
     title: str = Field(min_length=2, max_length=240)
 
+    _normalize_title = field_validator("title")(normalize_required_text)
+
 
 class TaskCompletionInput(BaseModel):
     completed: bool
@@ -68,6 +85,8 @@ class TaskCompletionInput(BaseModel):
 
 class CommentInput(BaseModel):
     body: str = Field(min_length=1, max_length=4000)
+
+    _normalize_body = field_validator("body")(normalize_required_text)
 
 
 @app.get("/health")

@@ -39,6 +39,44 @@ def test_owner_can_create_workspace_and_member_cannot_read_another_workspace(tmp
     assert forbidden.status_code == 403
 
 
+def test_rejects_whitespace_only_registration_email(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.post(
+        "/api/auth/register",
+        json={"email": "   ", "password": "correct-horse-battery-staple"},
+    )
+
+    assert response.status_code == 422
+
+
+def test_rejects_whitespace_only_mutation_fields(tmp_path):
+    client = make_client(tmp_path)
+    owner = register(client, "blank-input-owner@example.test")
+    headers = auth_headers(owner["access_token"])
+
+    blank_workspace = client.post("/api/workspaces", headers=headers, json={"name": "   "})
+    assert blank_workspace.status_code == 422
+
+    workspace = client.post("/api/workspaces", headers=headers, json={"name": "Validated workspace"}).json()
+    blank_application = client.post(
+        f"/api/workspaces/{workspace['id']}/applications",
+        headers=headers,
+        json={"company": "  ", "job_title": "\t"},
+    )
+    assert blank_application.status_code == 422
+
+    application = client.post(
+        f"/api/workspaces/{workspace['id']}/applications",
+        headers=headers,
+        json={"company": "Validated Company", "job_title": "Backend Intern"},
+    ).json()
+    blank_task = client.post(f"/api/applications/{application['id']}/tasks", headers=headers, json={"title": "\n "})
+    blank_comment = client.post(f"/api/applications/{application['id']}/comments", headers=headers, json={"body": " \t"})
+    assert blank_task.status_code == 422
+    assert blank_comment.status_code == 422
+
+
 def test_workspace_list_returns_only_the_callers_memberships(tmp_path):
     client = make_client(tmp_path)
     owner = register(client, "owner@example.test")
