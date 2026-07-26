@@ -8,6 +8,20 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $evidencePath = Join-Path $root "local_data\verification-evidence.json"
 $python = Join-Path $root ".venv\Scripts\python.exe"
+$verifiedCommit = git -C $root rev-parse HEAD 2>$null | Select-Object -First 1
+if ($LASTEXITCODE -ne 0 -or -not $verifiedCommit) {
+    $verifiedCommit = $null
+} else {
+    $verifiedCommit = $verifiedCommit.Trim()
+}
+$worktreeClean = $true
+& git -C $root diff --quiet
+if ($LASTEXITCODE -ne 0) { $worktreeClean = $false }
+& git -C $root diff --cached --quiet
+if ($LASTEXITCODE -ne 0) { $worktreeClean = $false }
+if (-not $worktreeClean) {
+    Write-Warning "Tracked source changes are present; resume evidence remains ineligible until they are committed and verified."
+}
 
 function Invoke-Check {
     param(
@@ -85,9 +99,9 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
 }
 
 $ciPassed = $false
-if (-not $LocalOnly -and (Get-Command gh -ErrorAction SilentlyContinue)) {
+if ($worktreeClean -and -not $LocalOnly -and (Get-Command gh -ErrorAction SilentlyContinue)) {
     $repo = (git -C $root remote get-url origin 2>$null)
-    $commit = (git -C $root rev-parse HEAD 2>$null)
+    $commit = $verifiedCommit
     if ($repo -match "github\.com[:/](?<owner>[^/]+)/(?<name>[^/.]+)(\.git)?$") {
         $repoName = "$($Matches.owner)/$($Matches.name)"
         $runs = gh run list --repo $repoName --commit $commit --limit 1 --json status,conclusion | ConvertFrom-Json
@@ -110,6 +124,8 @@ New-Item -ItemType Directory -Path (Split-Path -Parent $evidencePath) -Force | O
 $evidence = [ordered]@{
     generated_at_utc = [DateTime]::UtcNow.ToString("o")
     generated_by = "scripts/record-verification-evidence.ps1"
+    verified_commit = $verifiedCommit
+    worktree_clean = $worktreeClean
     backend_tests_passed = $backendPassed
     frontend_tests_and_build_passed = $frontendPassed
     docker_smoke_passed = $dockerPassed

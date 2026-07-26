@@ -84,7 +84,7 @@ To write a local, ignored evidence manifest for the complete acceptance gate (te
 powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\scripts\record-verification-evidence.ps1
 ```
 
-Use `-LocalOnly` only when the repository has not yet been pushed; it deliberately records `ci_passed: false`.
+Use `-LocalOnly` only when the repository has not yet been pushed; it deliberately records `ci_passed: false`. A fully eligible manifest also records the exact Git commit it verified and requires no uncommitted tracked source changes, so the Resume Growth Coach planner rejects missing or stale evidence.
 
 ## Sanitized demo
 
