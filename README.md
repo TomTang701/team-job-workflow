@@ -48,13 +48,13 @@ The API explicitly permits only the local Vite (`5173`) and Compose web (`8080`)
 
 ## Docker
 
-Docker Compose uses a development-only PostgreSQL password and starts the API on port 8000 and web client on port 8080:
+Docker Compose uses a development-only PostgreSQL password and starts the API on `127.0.0.1:8000` and web client on `127.0.0.1:8080`. The ports are deliberately bound only to the local machine:
 
 ```powershell
 powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\scripts\run-docker-smoke.ps1
 ```
 
-The smoke test waits for the API health endpoint, then runs authenticated contracts against the Compose PostgreSQL stack with fresh `@example.test` users. It verifies owner/member authorization isolation, concurrent uniqueness conflicts return `201`/`409` rather than server errors, application status changes, task completion, comments, and the corresponding activity audit records before removing the containers and volume.
+The smoke test waits for the API health endpoint, verifies Docker has bound both published ports only to loopback, then runs authenticated contracts against the Compose PostgreSQL stack with fresh `@example.test` users. It verifies owner/member authorization isolation, concurrent uniqueness conflicts return `201`/`409` rather than server errors, application status changes, task completion, comments, and the corresponding activity audit records before removing the containers and volume.
 
 For the visible React workflow, install the frontend dependencies and Chromium once, then run the browser smoke:
 

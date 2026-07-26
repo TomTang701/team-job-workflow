@@ -17,6 +17,8 @@ try {
         } catch { Start-Sleep -Seconds 2 }
     }
     if (-not $ready) { docker compose logs; throw "API did not become healthy." }
+    & (Join-Path $PSScriptRoot "assert-local-port-bindings.ps1")
+    if ($LASTEXITCODE -ne 0) { throw "Compose loopback port binding check failed with exit code $LASTEXITCODE." }
     & (Join-Path $PSScriptRoot "run-compose-contract-smoke.ps1")
     Write-Host "Docker smoke test passed." -ForegroundColor Green
 } finally {

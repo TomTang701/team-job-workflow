@@ -19,7 +19,7 @@ services:
       TJW_DATABASE_URL: postgresql+psycopg://team_job_workflow:local-development-only@db:5432/team_job_workflow
       TJW_SECRET_KEY: local-docker-only-change-before-deployment
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -27,7 +27,7 @@ services:
   web:
     build: ./frontend
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     depends_on:
       - api
 
