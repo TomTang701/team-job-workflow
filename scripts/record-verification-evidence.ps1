@@ -37,13 +37,20 @@ $backendPassed = Invoke-Check -Name "backend tests" -Action {
     & $python -m pytest -q
 }
 
+if ($env:OS -eq "Windows_NT" -and -not (Get-Command node -ErrorAction SilentlyContinue)) {
+    $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $env:Path = "$machinePath;$userPath;$env:Path"
+}
+
+$node = Get-Command node -ErrorAction SilentlyContinue
 $pnpm = Get-Command pnpm.cmd -ErrorAction SilentlyContinue
 if ($null -eq $pnpm) {
     $pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
 }
 $frontendPassed = $false
-if ($null -eq $pnpm) {
-    Write-Warning "pnpm was not found; frontend verification cannot run."
+if ($null -eq $node -or $null -eq $pnpm) {
+    Write-Warning "Node.js and pnpm are required; frontend verification cannot run."
 } else {
     $frontendPath = Join-Path $root "frontend"
     Push-Location -LiteralPath $frontendPath
