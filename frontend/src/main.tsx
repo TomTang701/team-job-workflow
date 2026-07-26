@@ -5,7 +5,7 @@ import { groupApplications, JobApplication, STATUSES } from "./kanban";
 import { addWorkspaceMember, ApplicationDetail, createApplication, createComment, createTask, createWorkspace, getApplicationDetails, listApplications, listWorkspaces, register, setApplicationStatus, setTaskCompletion, signIn, Workspace } from "./api";
 import "./styles.css";
 
-function App() {
+export function App() {
   const [token, setToken] = useState("");
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [workspaceId, setWorkspaceId] = useState("");
@@ -180,4 +180,7 @@ function App() {
   </main>;
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+const rootElement = document.getElementById("root");
+if (rootElement) {
+  createRoot(rootElement).render(<App />);
+}
