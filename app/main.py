@@ -1,5 +1,3 @@
-from contextlib import asynccontextmanager
-
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -8,18 +6,12 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app import models
-from app.database import get_db, init_db
+from app import database, models
+from app.database import get_db
 from app.security import create_access_token, decode_access_token, hash_password, verify_password
 
 
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    init_db()
-    yield
-
-
-app = FastAPI(title="Team Job Workflow", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Team Job Workflow", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -92,6 +84,10 @@ class CommentInput(BaseModel):
 
 @app.get("/health")
 def health() -> dict[str, str]:
+    try:
+        database.require_current_schema()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
     return {"status": "ok"}
 
 

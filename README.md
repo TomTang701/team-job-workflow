@@ -35,6 +35,10 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
+Alembic is the only production schema initializer: the API does not create tables on startup, and `/health` reports `503` until the database is upgraded to the current revision.
+
+If `local.sqlite3` was created by an older pre-migration build, it may contain tables without `alembic_version`; `alembic upgrade head` will correctly stop rather than overwrite it. Back up any unknown data first. For a disposable sanitized demo database, remove that file and run the migration command again; do not stamp an unverified database as current.
+
 In a second terminal:
 
 ```powershell
@@ -88,7 +92,7 @@ Use `-LocalOnly` only when the repository has not yet been pushed; it deliberate
 
 ## Sanitized demo
 
-After migrating a local database, create only fake data:
+After migrating a local database, create only fake data. The seed tool refuses an unversioned or outdated schema rather than creating tables itself:
 
 ```powershell
 .\.venv\Scripts\python.exe tools\seed_demo.py

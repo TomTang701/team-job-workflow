@@ -1,7 +1,10 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 
@@ -31,6 +34,25 @@ def init_db() -> None:
     from app import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+
+
+def schema_is_current() -> bool:
+    try:
+        inspector = inspect(engine)
+        if "alembic_version" not in inspector.get_table_names():
+            return False
+        with engine.connect() as connection:
+            current_revision = connection.execute(text("select version_num from alembic_version")).scalar_one_or_none()
+        config = Config(str(PROJECT_ROOT / "alembic.ini"))
+        expected_revision = ScriptDirectory.from_config(config).get_current_head()
+        return current_revision == expected_revision
+    except SQLAlchemyError:
+        return False
+
+
+def require_current_schema() -> None:
+    if not schema_is_current():
+        raise RuntimeError("Database migrations are required. Run alembic upgrade head.")
 
 
 def get_db():

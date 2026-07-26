@@ -6,7 +6,7 @@ from app.security import hash_password
 
 
 def seed_demo() -> None:
-    database.init_db()
+    database.require_current_schema()
     db = database.SessionLocal()
     try:
         if db.query(User).filter_by(email="demo.owner@example.test").first():
