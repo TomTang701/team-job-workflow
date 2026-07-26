@@ -6,7 +6,7 @@ type AuthResult = { access_token: string; token_type: string; user: { id?: numbe
 export type Workspace = { id: number; name: string; role: string };
 export type WorkspaceList = { items: Workspace[] };
 export type WorkspaceMember = { user_id: number; email: string; role: "owner" | "member" };
-export type TaskRecord = { id: number; title: string; completed: boolean };
+export type TaskRecord = { id: number; title: string; completed: boolean; created_by_id: number };
 export type CommentRecord = { id: number; body: string; author_id: number };
 export type ActivityRecord = { action: string; detail: string; actor_id: number };
 export type ApplicationDetail = {
@@ -15,6 +15,8 @@ export type ApplicationDetail = {
   company: string;
   job_title: string;
   status: string;
+  created_by_id: number;
+  workspace_role: "owner" | "member";
   tasks: TaskRecord[];
   comments: CommentRecord[];
   activities: ActivityRecord[];
@@ -23,8 +25,9 @@ export type ListApplicationsOptions = { statusFilter?: string; search?: string; 
 export type ApplicationList = { items: JobApplication[]; page: number; page_size: number; total: number };
 
 async function parseResponse<T>(response: Response): Promise<T> {
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.detail ?? "The API request failed.");
+  const text = await response.text();
+  const body = text ? JSON.parse(text) : undefined;
+  if (!response.ok) throw new Error(body?.detail ?? "The API request failed.");
   return body as T;
 }
 
@@ -112,6 +115,26 @@ export async function setTaskCompletion(token: string, taskId: number, completed
     body: JSON.stringify({ completed }),
   });
   return parseResponse<TaskRecord>(response);
+}
+
+async function deleteRecord(token: string, path: string): Promise<void> {
+  const response = await fetch(`${apiBase}${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  await parseResponse<void>(response);
+}
+
+export function deleteApplication(token: string, applicationId: number): Promise<void> {
+  return deleteRecord(token, `/api/applications/${applicationId}`);
+}
+
+export function deleteTask(token: string, taskId: number): Promise<void> {
+  return deleteRecord(token, `/api/tasks/${taskId}`);
+}
+
+export function deleteComment(token: string, commentId: number): Promise<void> {
+  return deleteRecord(token, `/api/comments/${commentId}`);
 }
 
 export async function createComment(token: string, applicationId: number, body: string): Promise<CommentRecord> {

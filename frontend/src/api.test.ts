@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { addWorkspaceMember, createApplication, createComment, createTask, createWorkspace, getApplicationDetails, listApplications, setApplicationStatus, setTaskCompletion, signIn } from "./api";
+import { addWorkspaceMember, createApplication, createComment, createTask, createWorkspace, deleteApplication, deleteComment, deleteTask, getApplicationDetails, listApplications, setApplicationStatus, setTaskCompletion, signIn } from "./api";
 
 describe("workflow API client", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -93,5 +93,17 @@ describe("workflow API client", () => {
 
     expect(member).toMatchObject({ user_id: 8, email: "member@example.test", role: "member" });
     expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:8000/api/workspaces/2/members", expect.objectContaining({ method: "POST", body: JSON.stringify({ email: "member@example.test", role: "member" }), headers: expect.objectContaining({ Authorization: "Bearer token" }) }));
+  });
+
+  it("deletes an application, task, or comment with a bearer token", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
+
+    await deleteApplication("token", 7);
+    await deleteTask("token", 19);
+    await deleteComment("token", 23);
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "http://127.0.0.1:8000/api/applications/7", expect.objectContaining({ method: "DELETE", headers: expect.objectContaining({ Authorization: "Bearer token" }) }));
+    expect(fetchMock).toHaveBeenNthCalledWith(2, "http://127.0.0.1:8000/api/tasks/19", expect.objectContaining({ method: "DELETE", headers: expect.objectContaining({ Authorization: "Bearer token" }) }));
+    expect(fetchMock).toHaveBeenNthCalledWith(3, "http://127.0.0.1:8000/api/comments/23", expect.objectContaining({ method: "DELETE", headers: expect.objectContaining({ Authorization: "Bearer token" }) }));
   });
 });

@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app import database, models
 from app.database import configure_database, init_db
 from app.main import app
 
@@ -50,6 +51,18 @@ def test_rejects_whitespace_only_registration_email(tmp_path):
     )
 
     assert response.status_code == 422
+
+
+def test_registration_accepts_six_character_password_and_rejects_shorter_password(tmp_path):
+    client = make_client(tmp_path)
+
+    too_short = client.post("/api/auth/register", json={"email": "short@example.test", "password": "12345"})
+    accepted = client.post("/api/auth/register", json={"email": "six@example.test", "password": "123456"})
+    login = client.post("/api/auth/login", json={"email": "six@example.test", "password": "123456"})
+
+    assert too_short.status_code == 422
+    assert accepted.status_code == 201
+    assert login.status_code == 200
 
 
 def test_registration_maps_database_unique_conflict_to_409(tmp_path, monkeypatch):
@@ -277,6 +290,82 @@ def test_member_can_mark_application_task_complete_and_activity_is_recorded(tmp_
     assert completed.json()["completed"] is True
     details = client.get(f"/api/applications/{application['id']}", headers=auth_headers(owner["access_token"]))
     assert any(activity["action"] == "task_completed" for activity in details.json()["activities"])
+
+
+def test_only_creator_or_owner_can_delete_workflow_records(tmp_path):
+    client = make_client(tmp_path)
+    owner = register(client, "owner@example.test")
+    creator = register(client, "creator@example.test")
+    peer = register(client, "peer@example.test")
+    outsider = register(client, "outsider@example.test")
+    owner_headers = auth_headers(owner["access_token"])
+    creator_headers = auth_headers(creator["access_token"])
+    peer_headers = auth_headers(peer["access_token"])
+    outsider_headers = auth_headers(outsider["access_token"])
+    workspace = client.post("/api/workspaces", headers=owner_headers, json={"name": "Deletion controls"}).json()
+
+    for email in ("creator@example.test", "peer@example.test"):
+        invited = client.post(
+            f"/api/workspaces/{workspace['id']}/members",
+            headers=owner_headers,
+            json={"email": email, "role": "member"},
+        )
+        assert invited.status_code == 201
+
+    application = client.post(
+        f"/api/workspaces/{workspace['id']}/applications",
+        headers=creator_headers,
+        json={"company": "Example Co", "job_title": "Backend Intern"},
+    ).json()
+    task = client.post(
+        f"/api/applications/{application['id']}/tasks",
+        headers=creator_headers,
+        json={"title": "Prepare interview notes"},
+    ).json()
+    comment = client.post(
+        f"/api/applications/{application['id']}/comments",
+        headers=creator_headers,
+        json={"body": "Share sanitized interview notes."},
+    ).json()
+
+    assert client.delete(f"/api/tasks/{task['id']}", headers=peer_headers).status_code == 403
+    assert client.delete(f"/api/comments/{comment['id']}", headers=peer_headers).status_code == 403
+    assert client.delete(f"/api/applications/{application['id']}", headers=peer_headers).status_code == 403
+    assert client.delete(f"/api/tasks/{task['id']}", headers=outsider_headers).status_code == 403
+
+    assert client.delete(f"/api/tasks/{task['id']}", headers=creator_headers).status_code == 204
+    assert client.delete(f"/api/comments/{comment['id']}", headers=creator_headers).status_code == 204
+    details = client.get(f"/api/applications/{application['id']}", headers=creator_headers).json()
+    assert details["tasks"] == []
+    assert details["comments"] == []
+    assert {"task_deleted", "comment_deleted"} <= {activity["action"] for activity in details["activities"]}
+
+    assert client.delete(f"/api/applications/{application['id']}", headers=owner_headers).status_code == 204
+    assert client.get(f"/api/applications/{application['id']}", headers=owner_headers).status_code == 404
+    assert client.delete("/api/tasks/99999", headers=owner_headers).status_code == 404
+    assert client.delete("/api/comments/99999", headers=owner_headers).status_code == 404
+    assert client.delete("/api/applications/99999", headers=owner_headers).status_code == 404
+
+    creator_owned_application = client.post(
+        f"/api/workspaces/{workspace['id']}/applications",
+        headers=creator_headers,
+        json={"company": "Creator Co", "job_title": "Platform Intern"},
+    ).json()
+    assert client.delete(f"/api/applications/{creator_owned_application['id']}", headers=creator_headers).status_code == 204
+
+    cascading_application = client.post(
+        f"/api/workspaces/{workspace['id']}/applications",
+        headers=creator_headers,
+        json={"company": "Cascade Co", "job_title": "Software Intern"},
+    ).json()
+    client.post(f"/api/applications/{cascading_application['id']}/tasks", headers=creator_headers, json={"title": "Delete with parent"})
+    client.post(f"/api/applications/{cascading_application['id']}/comments", headers=creator_headers, json={"body": "Delete with parent."})
+    assert client.delete(f"/api/applications/{cascading_application['id']}", headers=owner_headers).status_code == 204
+
+    with database.SessionLocal() as db:
+        assert db.query(models.Task).filter_by(application_id=cascading_application["id"]).count() == 0
+        assert db.query(models.Comment).filter_by(application_id=cascading_application["id"]).count() == 0
+        assert db.query(models.Activity).filter_by(action="application_deleted", application_id=None).count() >= 1
 
 
 def test_api_allows_local_vite_browser_origin(tmp_path):

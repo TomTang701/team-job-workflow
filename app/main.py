@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, field_validator
@@ -21,7 +21,7 @@ app.add_middleware(
         "http://localhost:8080",
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 bearer = HTTPBearer()
@@ -37,7 +37,7 @@ def normalize_required_text(value: str) -> str:
 
 class Credentials(BaseModel):
     email: str = Field(min_length=3, max_length=320)
-    password: str = Field(min_length=12, max_length=256)
+    password: str = Field(min_length=6, max_length=256)
 
     _normalize_email = field_validator("email")(normalize_required_text)
 
@@ -114,6 +114,11 @@ def application_for(db: Session, application_id: int, user_id: int) -> tuple[mod
     if application is None:
         raise HTTPException(status_code=404, detail="Application was not found.")
     return application, membership_for(db, application.workspace_id, user_id)
+
+
+def require_creator_or_owner(membership: models.Membership, creator_id: int, user_id: int) -> None:
+    if membership.role != "owner" and creator_id != user_id:
+        raise HTTPException(status_code=403, detail="Only the record creator or a workspace owner can delete this record.")
 
 
 def log_activity(db: Session, workspace_id: int, actor_id: int, action: str, detail: str, application_id: int | None = None) -> None:
@@ -247,7 +252,7 @@ def create_task(application_id: int, payload: TaskInput, user: models.User = Dep
     log_activity(db, application.workspace_id, user.id, "task_created", task.title, application.id)
     db.commit()
     db.refresh(task)
-    return {"id": task.id, "title": task.title, "completed": task.completed}
+    return {"id": task.id, "title": task.title, "completed": task.completed, "created_by_id": task.created_by_id}
 
 
 @app.patch("/api/tasks/{task_id}")
@@ -260,7 +265,21 @@ def update_task(task_id: int, payload: TaskCompletionInput, user: models.User = 
     action = "task_completed" if payload.completed else "task_reopened"
     log_activity(db, application.workspace_id, user.id, action, task.title, application.id)
     db.commit()
-    return {"id": task.id, "title": task.title, "completed": task.completed}
+    return {"id": task.id, "title": task.title, "completed": task.completed, "created_by_id": task.created_by_id}
+
+
+@app.delete("/api/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_task(task_id: int, user: models.User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+    task = db.get(models.Task, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task was not found.")
+    application, membership = application_for(db, task.application_id, user.id)
+    require_creator_or_owner(membership, task.created_by_id, user.id)
+    title = task.title
+    db.delete(task)
+    log_activity(db, application.workspace_id, user.id, "task_deleted", title, application.id)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.post("/api/applications/{application_id}/comments", status_code=201)
@@ -274,15 +293,45 @@ def create_comment(application_id: int, payload: CommentInput, user: models.User
     return {"id": comment.id, "body": comment.body, "author_id": comment.author_id}
 
 
+@app.delete("/api/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_comment(comment_id: int, user: models.User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+    comment = db.get(models.Comment, comment_id)
+    if comment is None:
+        raise HTTPException(status_code=404, detail="Comment was not found.")
+    application, membership = application_for(db, comment.application_id, user.id)
+    require_creator_or_owner(membership, comment.author_id, user.id)
+    db.delete(comment)
+    log_activity(db, application.workspace_id, user.id, "comment_deleted", "Comment deleted", application.id)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.get("/api/applications/{application_id}")
 def get_application(application_id: int, user: models.User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
-    application, _ = application_for(db, application_id, user.id)
+    application, membership = application_for(db, application_id, user.id)
     payload = application_payload(application)
-    payload["tasks"] = [{"id": task.id, "title": task.title, "completed": task.completed} for task in db.query(models.Task).filter_by(application_id=application.id).all()]
+    payload["workspace_role"] = membership.role
+    payload["tasks"] = [{"id": task.id, "title": task.title, "completed": task.completed, "created_by_id": task.created_by_id} for task in db.query(models.Task).filter_by(application_id=application.id).all()]
     payload["comments"] = [{"id": comment.id, "body": comment.body, "author_id": comment.author_id} for comment in db.query(models.Comment).filter_by(application_id=application.id).all()]
     payload["activities"] = [{"action": activity.action, "detail": activity.detail, "actor_id": activity.actor_id} for activity in db.query(models.Activity).filter_by(application_id=application.id).order_by(models.Activity.created_at).all()]
     return payload
 
 
+@app.delete("/api/applications/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_application(application_id: int, user: models.User = Depends(current_user), db: Session = Depends(get_db)) -> Response:
+    application, membership = application_for(db, application_id, user.id)
+    require_creator_or_owner(membership, application.created_by_id, user.id)
+    company = application.company
+    db.query(models.Activity).filter_by(application_id=application.id).update(
+        {models.Activity.application_id: None}, synchronize_session=False
+    )
+    db.query(models.Task).filter_by(application_id=application.id).delete(synchronize_session=False)
+    db.query(models.Comment).filter_by(application_id=application.id).delete(synchronize_session=False)
+    log_activity(db, application.workspace_id, user.id, "application_deleted", company)
+    db.delete(application)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 def application_payload(application: models.JobApplication) -> dict:
-    return {"id": application.id, "workspace_id": application.workspace_id, "company": application.company, "job_title": application.job_title, "status": application.status}
+    return {"id": application.id, "workspace_id": application.workspace_id, "company": application.company, "job_title": application.job_title, "status": application.status, "created_by_id": application.created_by_id}

@@ -28,6 +28,7 @@ describe("useSession", () => {
     });
 
     expect(result.current.token).toBe("test-token");
+    expect(result.current.userId).toBe(1);
     expect(result.current.workspaceId).toBe("7");
     expect(result.current.workspaces).toEqual([{ id: 7, name: "Sanitized Workspace", role: "owner" }]);
     expect(result.current.message).toBe("Signed in as owner@example.test.");

@@ -30,6 +30,7 @@ describe("App", () => {
   it("loads an accessible workspace after a successful sign-in", async () => {
     api.signIn.mockResolvedValue({ access_token: "test-token", user: { email: "owner@example.test" } });
     api.listWorkspaces.mockResolvedValue({ items: [{ id: 7, name: "Sanitized Workspace", role: "owner" }] });
+    api.listApplications.mockResolvedValue({ items: [], page: 1, page_size: 20, total: 0 });
     render(<App />);
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "owner@example.test" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "correct-horse-battery-staple" } });
@@ -38,6 +39,12 @@ describe("App", () => {
     expect(await screen.findByText("Signed in as owner@example.test.")).not.toBeNull();
     expect(api.listWorkspaces).toHaveBeenCalledWith("test-token");
     expect(screen.getByRole("option", { name: "Sanitized Workspace (owner)" })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Sanitized Workspace" }));
+
+    expect(await screen.findByRole("heading", { name: "Sanitized Workspace" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Add application" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Create workspace" })).toBeNull();
   });
 
   it("shows the API error when sign-in fails", async () => {

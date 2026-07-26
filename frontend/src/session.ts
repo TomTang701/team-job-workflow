@@ -6,6 +6,7 @@ export type AuthenticationMode = "sign-in" | "register";
 
 export function useSession() {
   const [token, setToken] = useState("");
+  const [userId, setUserId] = useState<number | null>(null);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [workspaceId, setWorkspaceId] = useState("");
   const [email, setEmail] = useState("");
@@ -27,6 +28,7 @@ export function useSession() {
     try {
       const body = mode === "register" ? await register(nextEmail, nextPassword) : await signIn(nextEmail, nextPassword);
       setToken(body.access_token);
+      setUserId(body.user.id ?? null);
       await loadWorkspaces(body.access_token);
       setMessage(`${mode === "register" ? "Registered" : "Signed in"} as ${body.user.email}.`);
       return true;
@@ -52,6 +54,7 @@ export function useSession() {
 
   return {
     token,
+    userId,
     workspaces,
     workspaceId,
     email,
