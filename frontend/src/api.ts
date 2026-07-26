@@ -3,7 +3,8 @@ import type { JobApplication } from "./kanban";
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 type AuthResult = { access_token: string; token_type: string; user: { id?: number; email: string } };
-type Workspace = { id: number; name: string; role: string };
+export type Workspace = { id: number; name: string; role: string };
+export type WorkspaceList = { items: Workspace[] };
 export type WorkspaceMember = { user_id: number; email: string; role: "owner" | "member" };
 export type TaskRecord = { id: number; title: string; completed: boolean };
 export type CommentRecord = { id: number; body: string; author_id: number };
@@ -52,6 +53,13 @@ export async function createWorkspace(token: string, name: string): Promise<Work
     body: JSON.stringify({ name }),
   });
   return parseResponse<Workspace>(response);
+}
+
+export async function listWorkspaces(token: string): Promise<WorkspaceList> {
+  const response = await fetch(`${apiBase}/api/workspaces`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return parseResponse<WorkspaceList>(response);
 }
 
 export async function addWorkspaceMember(token: string, workspaceId: number, email: string, role: WorkspaceMember["role"]): Promise<WorkspaceMember> {

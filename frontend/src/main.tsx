@@ -2,13 +2,14 @@ import { FormEvent, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { groupApplications, JobApplication, STATUSES } from "./kanban";
-import { addWorkspaceMember, ApplicationDetail, createComment, createTask, createWorkspace, getApplicationDetails, listApplications, register, setTaskCompletion, signIn } from "./api";
+import { addWorkspaceMember, ApplicationDetail, createComment, createTask, createWorkspace, getApplicationDetails, listApplications, listWorkspaces, register, setTaskCompletion, signIn, Workspace } from "./api";
 import "./styles.css";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 function App() {
   const [token, setToken] = useState("");
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [workspaceId, setWorkspaceId] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
   const [email, setEmail] = useState("");
@@ -30,11 +31,22 @@ function App() {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  async function loadWorkspaces(accessToken = token) {
+    if (!accessToken) return;
+    const body = await listWorkspaces(accessToken);
+    setWorkspaces(body.items);
+    setWorkspaceId((current) => {
+      if (body.items.some((workspace) => String(workspace.id) === current)) return current;
+      return body.items.length ? String(body.items[0].id) : "";
+    });
+  }
+
   async function authenticate(event: FormEvent, mode: "sign-in" | "register") {
     event.preventDefault();
     try {
       const body = mode === "register" ? await register(email, password) : await signIn(email, password);
       setToken(body.access_token);
+      await loadWorkspaces(body.access_token);
       setMessage(`${mode === "register" ? "Registered" : "Signed in"} as ${body.user.email}.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Authentication failed.");
@@ -45,7 +57,10 @@ function App() {
     event.preventDefault();
     try {
       const workspace = await createWorkspace(token, workspaceName);
+      setWorkspaces((current) => [...current.filter((item) => item.id !== workspace.id), workspace]);
       setWorkspaceId(String(workspace.id));
+      setApplications([]);
+      setDetails(null);
       setWorkspaceName("");
       setMessage(`Created ${workspace.name}. Its workspace ID is ${workspace.id}.`);
     } catch (error) {
@@ -147,7 +162,7 @@ function App() {
     <header><p className="eyebrow">SANITIZED DEMO ONLY</p><h1>Team Job Workflow</h1><p>Shared, role-aware job-search tracking without platform automation.</p></header>
     <section className="controls">
       <form onSubmit={(event) => authenticate(event, "sign-in")}><h2>Account</h2><input aria-label="Email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="email" /><input aria-label="Password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="12+ character password" /><button>Sign in</button><button type="button" onClick={(event) => authenticate(event, "register")}>Register</button></form>
-      <form onSubmit={addWorkspace}><h2>Workspace</h2><input aria-label="Workspace name" value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} placeholder="sanitized workspace name" /><button disabled={!token || !workspaceName}>Create workspace</button><input aria-label="Workspace ID" value={workspaceId} onChange={(event) => setWorkspaceId(event.target.value)} placeholder="workspace id" /><button type="button" onClick={() => loadApplications()} disabled={!token || !workspaceId}>Load board</button></form>
+      <form onSubmit={addWorkspace}><h2>Workspace</h2><input aria-label="Workspace name" value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} placeholder="sanitized workspace name" /><button disabled={!token || !workspaceName}>Create workspace</button><select aria-label="Active workspace" value={workspaceId} onChange={(event) => { setWorkspaceId(event.target.value); setApplications([]); setDetails(null); }} disabled={!token}><option value="">Select a workspace</option>{workspaces.map((workspace) => <option key={workspace.id} value={workspace.id}>{workspace.name} ({workspace.role})</option>)}</select><button type="button" onClick={() => loadApplications()} disabled={!token || !workspaceId}>Load board</button></form>
       <form onSubmit={addApplication}><h2>Add application</h2><input aria-label="Company" value={company} onChange={(event) => setCompany(event.target.value)} placeholder="company" /><input aria-label="Job title" value={jobTitle} onChange={(event) => setJobTitle(event.target.value)} placeholder="job title" /><button disabled={!token || !workspaceId}>Add</button></form>
       <form onSubmit={addMember}><h2>Team member</h2><input aria-label="Member email" type="email" value={memberEmail} onChange={(event) => setMemberEmail(event.target.value)} placeholder="registered demo email" /><select aria-label="Member role" value={memberRole} onChange={(event) => setMemberRole(event.target.value as "owner" | "member")}><option value="member">member</option><option value="owner">owner</option></select><button disabled={!token || !workspaceId || !memberEmail.trim()}>Add registered member</button></form>
     </section>

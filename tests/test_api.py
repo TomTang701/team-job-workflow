@@ -39,6 +39,37 @@ def test_owner_can_create_workspace_and_member_cannot_read_another_workspace(tmp
     assert forbidden.status_code == 403
 
 
+def test_workspace_list_returns_only_the_callers_memberships(tmp_path):
+    client = make_client(tmp_path)
+    owner = register(client, "owner@example.test")
+    member = register(client, "member@example.test")
+    stranger = register(client, "stranger@example.test")
+    shared = client.post(
+        "/api/workspaces",
+        headers=auth_headers(owner["access_token"]),
+        json={"name": "Shared Search"},
+    ).json()
+    client.post(
+        "/api/workspaces",
+        headers=auth_headers(owner["access_token"]),
+        json={"name": "Owner Only Search"},
+    )
+    invited = client.post(
+        f"/api/workspaces/{shared['id']}/members",
+        headers=auth_headers(owner["access_token"]),
+        json={"email": member["user"]["email"], "role": "member"},
+    )
+    assert invited.status_code == 201
+
+    member_workspaces = client.get("/api/workspaces", headers=auth_headers(member["access_token"]))
+    stranger_workspaces = client.get("/api/workspaces", headers=auth_headers(stranger["access_token"]))
+
+    assert member_workspaces.status_code == 200
+    assert member_workspaces.json() == {"items": [{"id": shared["id"], "name": "Shared Search", "role": "member"}]}
+    assert stranger_workspaces.status_code == 200
+    assert stranger_workspaces.json() == {"items": []}
+
+
 def test_member_cannot_invite_workspace_members(tmp_path):
     client = make_client(tmp_path)
     owner = register(client, "owner@example.test")

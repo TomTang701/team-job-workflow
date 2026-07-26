@@ -12,7 +12,7 @@ A sanitized-demo, role-aware application tracker for teams. It is a portfolio pr
 
 ## Capabilities
 
-- Create workspaces and add already-registered members with `owner` or `member` roles; the API enforces owner-only membership changes.
+- Create, discover, and select only the workspaces available through the caller's membership; owners can add already-registered `owner` or `member` accounts, while the API enforces owner-only membership changes.
 - Track sanitized application records across saved, applied, interview, offer, and rejected stages.
 - Filter, search, and paginate application lists.
 - Open a Kanban card to create and complete tasks, add comments, and review its activity log for status changes and collaboration events.

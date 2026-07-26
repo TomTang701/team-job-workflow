@@ -19,6 +19,7 @@ test("owner completes the sanitized collaboration workflow through the UI", asyn
   await workspaceForm.getByLabel("Workspace name").fill(workspaceName);
   await workspaceForm.getByRole("button", { name: "Create workspace", exact: true }).click();
   await expect(page.locator(".message")).toContainText(`Created ${workspaceName}`);
+  await expect(workspaceForm.getByLabel("Active workspace")).toHaveValue(/\d+/);
 
   const applicationForm = page.locator("form").filter({ has: page.getByRole("heading", { name: "Add application", exact: true }) });
   await applicationForm.getByLabel("Company").fill(company);

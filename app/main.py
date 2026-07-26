@@ -139,6 +139,18 @@ def create_workspace(payload: WorkspaceInput, user: models.User = Depends(curren
     return {"id": workspace.id, "name": workspace.name, "role": "owner"}
 
 
+@app.get("/api/workspaces")
+def list_workspaces(user: models.User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
+    rows = (
+        db.query(models.Workspace, models.Membership)
+        .join(models.Membership, models.Membership.workspace_id == models.Workspace.id)
+        .filter(models.Membership.user_id == user.id)
+        .order_by(models.Workspace.created_at.desc())
+        .all()
+    )
+    return {"items": [{"id": workspace.id, "name": workspace.name, "role": membership.role} for workspace, membership in rows]}
+
+
 @app.get("/api/workspaces/{workspace_id}")
 def get_workspace(workspace_id: int, user: models.User = Depends(current_user), db: Session = Depends(get_db)) -> dict:
     membership = membership_for(db, workspace_id, user.id)
