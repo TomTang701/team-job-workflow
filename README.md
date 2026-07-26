@@ -48,6 +48,17 @@ Docker Compose uses a development-only PostgreSQL password and starts the API on
 
 The smoke test waits for the API health endpoint, then runs an authenticated HTTP contract against the Compose PostgreSQL stack with fresh `@example.test` users. It verifies owner/member authorization isolation, application status changes, task completion, comments, and the corresponding activity audit records before removing the containers and volume.
 
+For the visible React workflow, install the frontend dependencies and Chromium once, then run the browser smoke:
+
+```powershell
+Set-Location frontend
+pnpm exec playwright install chromium
+Set-Location ..
+.\scripts\run-browser-smoke.ps1
+```
+
+It drives the Compose UI through registration, workspace and application creation, movement to interview, task completion, comments, and visible activity records. This is a Chromium happy-path smoke test using fresh `@example.test` data; it is not cross-browser or visual-regression coverage.
+
 For a persistent local stack, use `docker compose up --build`. Do not deploy with the default `TJW_SECRET_KEY` or development database password.
 
 ## Verification

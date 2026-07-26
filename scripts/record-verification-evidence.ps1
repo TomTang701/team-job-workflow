@@ -68,6 +68,15 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
     Write-Warning "Docker Desktop is not available; Docker smoke remains unverified."
 }
 
+$browserUiSmokePassed = $false
+if (Get-Command docker -ErrorAction SilentlyContinue) {
+    $browserUiSmokePassed = Invoke-Check -Name "Compose UI browser smoke test" -Action {
+        & (Join-Path $PSScriptRoot "run-browser-smoke.ps1")
+    }
+} else {
+    Write-Warning "Docker Desktop is not available; browser smoke remains unverified."
+}
+
 $ciPassed = $false
 if (-not $LocalOnly -and (Get-Command gh -ErrorAction SilentlyContinue)) {
     $repo = (git -C $root remote get-url origin 2>$null)
@@ -97,6 +106,7 @@ $evidence = [ordered]@{
     backend_tests_passed = $backendPassed
     frontend_tests_and_build_passed = $frontendPassed
     docker_smoke_passed = $dockerPassed
+    browser_ui_smoke_passed = $browserUiSmokePassed
     ci_passed = $ciPassed
     documentation_complete = $docsPassed
     sanitized_demo_verified = $sanitizedDemoVerified
@@ -104,6 +114,6 @@ $evidence = [ordered]@{
 $evidence | ConvertTo-Json | Set-Content -LiteralPath $evidencePath -Encoding UTF8
 Get-Content -Raw -LiteralPath $evidencePath
 
-if (-not ($backendPassed -and $frontendPassed -and $dockerPassed -and $ciPassed -and $docsPassed -and $sanitizedDemoVerified)) {
+if (-not ($backendPassed -and $frontendPassed -and $dockerPassed -and $browserUiSmokePassed -and $ciPassed -and $docsPassed -and $sanitizedDemoVerified)) {
     exit 1
 }

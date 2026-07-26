@@ -37,3 +37,21 @@ jobs:
       - uses: actions/checkout@v4
       - shell: pwsh
         run: ./scripts/run-docker-smoke.ps1
+  browser-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: frontend
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: frontend
+      - shell: pwsh
+        run: ./scripts/run-browser-smoke.ps1
