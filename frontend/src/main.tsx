@@ -2,16 +2,13 @@ import { FormEvent, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { groupApplications, JobApplication, STATUSES } from "./kanban";
-import { addWorkspaceMember, ApplicationDetail, createApplication, createComment, createTask, createWorkspace, getApplicationDetails, listApplications, listWorkspaces, register, setApplicationStatus, setTaskCompletion, signIn, Workspace } from "./api";
+import { addWorkspaceMember, ApplicationDetail, createApplication, createComment, createTask, getApplicationDetails, listApplications, setApplicationStatus, setTaskCompletion } from "./api";
+import { AuthenticationMode, useSession } from "./session";
 import "./styles.css";
 
 export function App() {
-  const [token, setToken] = useState("");
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [workspaceId, setWorkspaceId] = useState("");
-  const [workspaceName, setWorkspaceName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const session = useSession();
+  const { token, workspaces, workspaceId, workspaceName, email, password, message, setEmail, setMessage, setPassword, setWorkspaceId, setWorkspaceName } = session;
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [company, setCompany] = useState("");
   const [jobTitle, setJobTitle] = useState("");
@@ -24,43 +21,19 @@ export function App() {
   const [total, setTotal] = useState(0);
   const [memberEmail, setMemberEmail] = useState("");
   const [memberRole, setMemberRole] = useState<"owner" | "member">("member");
-  const [message, setMessage] = useState("Register or sign in, then create a sanitized workspace.");
   const groups = useMemo(() => groupApplications(applications), [applications]);
 
-  async function loadWorkspaces(accessToken = token) {
-    if (!accessToken) return;
-    const body = await listWorkspaces(accessToken);
-    setWorkspaces(body.items);
-    setWorkspaceId((current) => {
-      if (body.items.some((workspace) => String(workspace.id) === current)) return current;
-      return body.items.length ? String(body.items[0].id) : "";
-    });
-  }
-
-  async function authenticate(event: FormEvent, mode: "sign-in" | "register") {
+  async function authenticate(event: FormEvent, mode: AuthenticationMode) {
     event.preventDefault();
-    try {
-      const body = mode === "register" ? await register(email, password) : await signIn(email, password);
-      setToken(body.access_token);
-      await loadWorkspaces(body.access_token);
-      setMessage(`${mode === "register" ? "Registered" : "Signed in"} as ${body.user.email}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Authentication failed.");
-    }
+    await session.authenticate(email, password, mode);
   }
 
   async function addWorkspace(event: FormEvent) {
     event.preventDefault();
-    try {
-      const workspace = await createWorkspace(token, workspaceName);
-      setWorkspaces((current) => [...current.filter((item) => item.id !== workspace.id), workspace]);
-      setWorkspaceId(String(workspace.id));
+    const workspace = await session.createWorkspace(workspaceName);
+    if (workspace) {
       setApplications([]);
       setDetails(null);
-      setWorkspaceName("");
-      setMessage(`Created ${workspace.name}. Its workspace ID is ${workspace.id}.`);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not create workspace.");
     }
   }
 
