@@ -73,7 +73,7 @@ powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File 
 
 It drives the Compose UI through registration, workspace and application creation, movement to interview, task completion, comments, and visible activity records. This is a Chromium happy-path smoke test using fresh `@example.test` data; it is not cross-browser or visual-regression coverage.
 
-For a persistent local stack, use `docker compose up --build`. Do not deploy with the default `TJW_SECRET_KEY` or development database password.
+For a persistent local stack, use `docker compose up --build`. When `TJW_SECRET_KEY` is unset, the API generates a new high-entropy key at startup, so local JWTs are intentionally invalidated after an API restart. Set a unique `TJW_SECRET_KEY` before any persistent or non-local use; do not deploy with the development database password.
 
 ## Verification
 

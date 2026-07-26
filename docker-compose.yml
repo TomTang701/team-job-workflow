@@ -17,7 +17,7 @@ services:
     build: .
     environment:
       TJW_DATABASE_URL: postgresql+psycopg://team_job_workflow:local-development-only@db:5432/team_job_workflow
-      TJW_SECRET_KEY: local-docker-only-change-before-deployment
+      TJW_SECRET_KEY: ${TJW_SECRET_KEY:-}
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

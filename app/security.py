@@ -1,11 +1,12 @@
 import os
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import jwt
 from pwdlib import PasswordHash
 
 
-SECRET_KEY = os.getenv("TJW_SECRET_KEY", "local-development-key-change-before-deployment")
+SECRET_KEY = os.getenv("TJW_SECRET_KEY") or secrets.token_urlsafe(48)
 ALGORITHM = "HS256"
 password_hash = PasswordHash.recommended()
 
