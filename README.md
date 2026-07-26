@@ -30,7 +30,7 @@ Open a new terminal after the setup command. The PowerShell examples below delib
 
 ```powershell
 python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.lock
+.\.venv\Scripts\python.exe -m pip install --require-hashes -r requirements.lock
 .\.venv\Scripts\python.exe -m alembic upgrade head
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
@@ -43,12 +43,14 @@ In a second terminal:
 
 ```powershell
 Set-Location frontend
-pnpm.cmd install
+pnpm.cmd run verify:dependencies
+pnpm.cmd install --frozen-lockfile
 pnpm.cmd dev
 ```
 
 The API is available at `http://127.0.0.1:8000`; the Vite UI is normally served at `http://127.0.0.1:5173`.
 The API explicitly permits only the local Vite (`5173`) and Compose web (`8080`) origins; do not widen this list without an intentional deployment security review.
+All direct frontend dependencies are fixed to exact versions, while `pnpm-lock.yaml` records the resolved package-integrity hashes. Keep both files in sync; the verification command and CI reject floating direct dependency specifiers. Python dependencies likewise use exact versions plus SHA-256 hashes; every local, Docker, and CI install requires those hashes.
 
 ## Docker
 
