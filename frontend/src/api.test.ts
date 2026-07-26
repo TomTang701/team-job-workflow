@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { addWorkspaceMember, createComment, createTask, createWorkspace, getApplicationDetails, listApplications, setTaskCompletion, signIn } from "./api";
+import { addWorkspaceMember, createApplication, createComment, createTask, createWorkspace, getApplicationDetails, listApplications, setApplicationStatus, setTaskCompletion, signIn } from "./api";
 
 describe("workflow API client", () => {
   afterEach(() => vi.restoreAllMocks());
@@ -21,6 +21,24 @@ describe("workflow API client", () => {
 
     expect(workspace.id).toBe(3);
     expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:8000/api/workspaces", expect.objectContaining({ headers: expect.objectContaining({ Authorization: "Bearer token" }) }));
+  });
+
+  it("creates an application with a bearer token", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ id: 17, company: "Example", job_title: "Backend Intern", status: "saved" }), { status: 201 }));
+
+    const application = await createApplication("token", 2, "Example", "Backend Intern");
+
+    expect(application).toMatchObject({ id: 17, company: "Example", job_title: "Backend Intern", status: "saved" });
+    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:8000/api/workspaces/2/applications", expect.objectContaining({ method: "POST", body: JSON.stringify({ company: "Example", job_title: "Backend Intern" }), headers: expect.objectContaining({ Authorization: "Bearer token" }) }));
+  });
+
+  it("updates an application status with a bearer token", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ id: 17, company: "Example", job_title: "Backend Intern", status: "interview" }), { status: 200 }));
+
+    const application = await setApplicationStatus("token", 17, "interview");
+
+    expect(application.status).toBe("interview");
+    expect(fetchMock).toHaveBeenCalledWith("http://127.0.0.1:8000/api/applications/17/status", expect.objectContaining({ method: "PATCH", body: JSON.stringify({ status: "interview" }), headers: expect.objectContaining({ Authorization: "Bearer token" }) }));
   });
 
   it("loads application details with collaboration records", async () => {

@@ -2,10 +2,8 @@ import { FormEvent, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 
 import { groupApplications, JobApplication, STATUSES } from "./kanban";
-import { addWorkspaceMember, ApplicationDetail, createComment, createTask, createWorkspace, getApplicationDetails, listApplications, listWorkspaces, register, setTaskCompletion, signIn, Workspace } from "./api";
+import { addWorkspaceMember, ApplicationDetail, createApplication, createComment, createTask, createWorkspace, getApplicationDetails, listApplications, listWorkspaces, register, setApplicationStatus, setTaskCompletion, signIn, Workspace } from "./api";
 import "./styles.css";
-
-const apiBase = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
 
 function App() {
   const [token, setToken] = useState("");
@@ -28,8 +26,6 @@ function App() {
   const [memberRole, setMemberRole] = useState<"owner" | "member">("member");
   const [message, setMessage] = useState("Register or sign in, then create a sanitized workspace.");
   const groups = useMemo(() => groupApplications(applications), [applications]);
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   async function loadWorkspaces(accessToken = token) {
     if (!accessToken) return;
@@ -100,19 +96,23 @@ function App() {
 
   async function addApplication(event: FormEvent) {
     event.preventDefault();
-    const response = await fetch(`${apiBase}/api/workspaces/${workspaceId}/applications`, { method: "POST", headers, body: JSON.stringify({ company, job_title: jobTitle }) });
-    const body = await response.json();
-    if (!response.ok) return setMessage(body.detail ?? "Could not create application.");
-    setCompany("");
-    setJobTitle("");
-    await loadApplications();
+    try {
+      await createApplication(token, Number(workspaceId), company, jobTitle);
+      setCompany("");
+      setJobTitle("");
+      await loadApplications();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not create application.");
+    }
   }
 
   async function moveApplication(application: JobApplication, target: string) {
-    const response = await fetch(`${apiBase}/api/applications/${application.id}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: target }) });
-    const body = await response.json();
-    if (!response.ok) return setMessage(body.detail ?? "Could not update status.");
-    setApplications((current) => current.map((item) => (item.id === application.id ? body : item)));
+    try {
+      const updated = await setApplicationStatus(token, application.id, target);
+      setApplications((current) => current.map((item) => (item.id === application.id ? updated : item)));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not update status.");
+    }
   }
 
   async function loadApplicationDetails(applicationId: number) {

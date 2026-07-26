@@ -78,6 +78,24 @@ export async function getApplicationDetails(token: string, applicationId: number
   return parseResponse<ApplicationDetail>(response);
 }
 
+export async function createApplication(token: string, workspaceId: number, company: string, jobTitle: string): Promise<JobApplication> {
+  const response = await fetch(`${apiBase}/api/workspaces/${workspaceId}/applications`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ company, job_title: jobTitle }),
+  });
+  return parseResponse<JobApplication>(response);
+}
+
+export async function setApplicationStatus(token: string, applicationId: number, status: string): Promise<JobApplication> {
+  const response = await fetch(`${apiBase}/api/applications/${applicationId}/status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ status }),
+  });
+  return parseResponse<JobApplication>(response);
+}
+
 export async function createTask(token: string, applicationId: number, title: string): Promise<TaskRecord> {
   const response = await fetch(`${apiBase}/api/applications/${applicationId}/tasks`, {
     method: "POST",
