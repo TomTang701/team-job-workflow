@@ -17,6 +17,7 @@ try {
         } catch { Start-Sleep -Seconds 2 }
     }
     if (-not $ready) { docker compose logs; throw "API did not become healthy." }
+    & (Join-Path $PSScriptRoot "run-compose-contract-smoke.ps1")
     Write-Host "Docker smoke test passed." -ForegroundColor Green
 } finally {
     docker compose down --volumes --remove-orphans

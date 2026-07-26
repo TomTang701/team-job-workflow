@@ -13,7 +13,7 @@
 ### Task 1: Lock down missing authorization paths in API tests
 
 **Files:**
-- Modify: `backend/tests/test_api.py`
+- Modify: `tests/test_api.py`
 
 **Step 1: Add focused coverage**
 
@@ -21,12 +21,12 @@ Add a test proving a member cannot invite workspace members and an unrelated aut
 
 **Step 2: Run the focused test**
 
-Run: `python -m pytest backend/tests/test_api.py -k "invite or outsider" -q`  
+Run: `.\.venv\Scripts\python.exe -m pytest tests/test_api.py -k "invite or outsider" -q`
 Expected: pass if the existing owner and workspace checks are correctly enforced; otherwise use the failure as the reproduction before a minimal backend fix.
 
 **Step 3: Run backend regression**
 
-Run: `python -m pytest backend/tests -q`  
+Run: `.\.venv\Scripts\python.exe -m pytest tests -q`
 Expected: pass.
 
 **Step 4: Commit**
@@ -56,7 +56,7 @@ Invoke the new script after `/health` is confirmed. Preserve the existing Compos
 
 **Step 4: Run Docker smoke**
 
-Run: `.\scripts\run-docker-smoke.ps1`  
+Run: `.\scripts\run-docker-smoke.ps1`
 Expected: Docker build, migration/startup, health check, HTTP contract, and teardown all pass.
 
 **Step 5: Commit**
@@ -70,26 +70,23 @@ git commit -m "test: exercise compose API workflow"
 
 **Files:**
 - Modify: `README.md`
-- Modify: `docs/DEVELOPMENT_LOG_CN.md`
-- Modify: `docs/DEVELOPMENT_LOG_EN.md`
-- Modify: `docs/TEST_LOG.md`
 
 **Step 1: Update documentation**
 
-State that the Docker smoke includes an authenticated, authorization-isolated API workflow using sanitized generated identities. Append dated bilingual development and test-log entries after the exact verification succeeds.
+State that the Docker smoke includes an authenticated, authorization-isolated API workflow using sanitized generated identities. Preserve the project's existing lightweight documentation structure rather than inventing development-log files.
 
 **Step 2: Run full gates**
 
-Run: `python -m pytest backend/tests -q`  
-Run: `pnpm.cmd test`  
-Run: `pnpm.cmd build`  
-Run: `.\scripts\run-docker-smoke.ps1`  
-Run: `python scripts/record_verification_evidence.py --ci-url <exact-passing-run-url>`
+Run: `.\.venv\Scripts\python.exe -m pytest tests -q`
+Run from `frontend`: `pnpm.cmd test`
+Run from `frontend`: `pnpm.cmd build`
+Run: `.\scripts\run-docker-smoke.ps1`
+Run: `.\scripts\record-verification-evidence.ps1`
 
 Expected: all application, frontend, Compose-contract, documentation, sanitization, and exact-head CI gates pass.
 
 **Step 3: Review and commit**
 
-Run: `git diff --check`  
-Run: `git status --short`  
+Run: `git diff --check`
+Run: `git status --short`
 Commit only intentional files and the evidence manifest if updated; preserve unrelated files.

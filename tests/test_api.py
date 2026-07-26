@@ -39,6 +39,33 @@ def test_owner_can_create_workspace_and_member_cannot_read_another_workspace(tmp
     assert forbidden.status_code == 403
 
 
+def test_member_cannot_invite_workspace_members(tmp_path):
+    client = make_client(tmp_path)
+    owner = register(client, "owner@example.test")
+    member = register(client, "member@example.test")
+    candidate = register(client, "candidate@example.test")
+    workspace = client.post(
+        "/api/workspaces",
+        headers=auth_headers(owner["access_token"]),
+        json={"name": "Search"},
+    ).json()
+
+    invited = client.post(
+        f"/api/workspaces/{workspace['id']}/members",
+        headers=auth_headers(owner["access_token"]),
+        json={"email": "member@example.test", "role": "member"},
+    )
+    assert invited.status_code == 201
+
+    forbidden = client.post(
+        f"/api/workspaces/{workspace['id']}/members",
+        headers=auth_headers(member["access_token"]),
+        json={"email": "candidate@example.test", "role": "member"},
+    )
+
+    assert forbidden.status_code == 403
+
+
 def test_member_can_track_application_status_tasks_and_comments(tmp_path):
     client = make_client(tmp_path)
     owner = register(client, "owner@example.test")

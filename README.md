@@ -46,6 +46,8 @@ Docker Compose uses a development-only PostgreSQL password and starts the API on
 .\scripts\run-docker-smoke.ps1
 ```
 
+The smoke test waits for the API health endpoint, then runs an authenticated HTTP contract against the Compose PostgreSQL stack with fresh `@example.test` users. It verifies owner/member authorization isolation, application status changes, task completion, comments, and the corresponding activity audit records before removing the containers and volume.
+
 For a persistent local stack, use `docker compose up --build`. Do not deploy with the default `TJW_SECRET_KEY` or development database password.
 
 ## Verification
