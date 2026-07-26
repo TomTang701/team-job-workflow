@@ -52,7 +52,7 @@ The API explicitly permits only the local Vite (`5173`) and Compose web (`8080`)
 
 ## Docker
 
-Docker Compose uses a development-only PostgreSQL password and starts the API on `127.0.0.1:8000` and web client on `127.0.0.1:8080`. The ports are deliberately bound only to the local machine:
+Docker Compose uses a development-only PostgreSQL password and starts the API on `127.0.0.1:8000` and web client on `127.0.0.1:8080`. The ports are deliberately bound only to the local machine. Python, Node, Nginx, and PostgreSQL base images are pinned to verified multi-architecture OCI digests; update a digest only with a new full verification run:
 
 ```powershell
 powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File .\scripts\run-docker-smoke.ps1
