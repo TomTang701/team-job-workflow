@@ -8,8 +8,9 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $evidencePath = Join-Path $root "local_data\verification-evidence.json"
 $python = Join-Path $root ".venv\Scripts\python.exe"
-$verifiedCommit = git -C $root rev-parse HEAD 2>$null | Select-Object -First 1
-if ($LASTEXITCODE -ne 0 -or -not $verifiedCommit) {
+$verifiedCommit = [string](& git -C $root rev-parse HEAD 2>$null)
+$gitExitCode = $LASTEXITCODE
+if ($gitExitCode -ne 0 -or -not $verifiedCommit) {
     $verifiedCommit = $null
 } else {
     $verifiedCommit = $verifiedCommit.Trim()
@@ -99,7 +100,7 @@ if (Get-Command docker -ErrorAction SilentlyContinue) {
 }
 
 $ciPassed = $false
-if ($worktreeClean -and -not $LocalOnly -and (Get-Command gh -ErrorAction SilentlyContinue)) {
+if ($worktreeClean -and $verifiedCommit -and -not $LocalOnly -and (Get-Command gh -ErrorAction SilentlyContinue)) {
     $repo = (git -C $root remote get-url origin 2>$null)
     $commit = $verifiedCommit
     if ($repo -match "github\.com[:/](?<owner>[^/]+)/(?<name>[^/.]+)(\.git)?$") {
