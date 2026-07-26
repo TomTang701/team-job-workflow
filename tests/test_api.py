@@ -1,15 +1,17 @@
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
 from app.database import configure_database, init_db
 from app.main import app
 
 
-def make_client(tmp_path: Path) -> TestClient:
+def make_client(tmp_path: Path, *, raise_server_exceptions: bool = True) -> TestClient:
     configure_database(f"sqlite:///{tmp_path / 'test.sqlite3'}")
     init_db()
-    return TestClient(app)
+    return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
 
 def register(client: TestClient, email: str, password: str = "correct-horse-battery-staple") -> dict:
@@ -48,6 +50,48 @@ def test_rejects_whitespace_only_registration_email(tmp_path):
     )
 
     assert response.status_code == 422
+
+
+def test_registration_maps_database_unique_conflict_to_409(tmp_path, monkeypatch):
+    client = make_client(tmp_path, raise_server_exceptions=False)
+
+    def raise_unique_conflict(_: Session) -> None:
+        raise IntegrityError("INSERT INTO users", {}, Exception("duplicate email"))
+
+    monkeypatch.setattr(Session, "commit", raise_unique_conflict)
+
+    response = client.post(
+        "/api/auth/register",
+        json={"email": "race@example.test", "password": "correct-horse-battery-staple"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Email is already registered."
+
+
+def test_member_invitation_maps_database_unique_conflict_to_409(tmp_path, monkeypatch):
+    client = make_client(tmp_path, raise_server_exceptions=False)
+    owner = register(client, "owner@example.test")
+    member = register(client, "member@example.test")
+    workspace = client.post(
+        "/api/workspaces",
+        headers=auth_headers(owner["access_token"]),
+        json={"name": "Concurrent access"},
+    ).json()
+
+    def raise_unique_conflict(_: Session) -> None:
+        raise IntegrityError("INSERT INTO memberships", {}, Exception("duplicate membership"))
+
+    monkeypatch.setattr(Session, "commit", raise_unique_conflict)
+
+    response = client.post(
+        f"/api/workspaces/{workspace['id']}/members",
+        headers=auth_headers(owner["access_token"]),
+        json={"email": member["user"]["email"], "role": "member"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "User is already a workspace member."
 
 
 def test_rejects_whitespace_only_mutation_fields(tmp_path):

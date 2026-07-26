@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app import models
@@ -134,7 +135,11 @@ def register(payload: Credentials, db: Session = Depends(get_db)) -> dict:
         raise HTTPException(status_code=409, detail="Email is already registered.")
     user = models.User(email=email, password_hash=hash_password(payload.password))
     db.add(user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Email is already registered.") from exc
     db.refresh(user)
     return token_response(user)
 
@@ -191,7 +196,11 @@ def add_member(workspace_id: int, payload: MembershipInput, user: models.User = 
         raise HTTPException(status_code=409, detail="User is already a workspace member.")
     db.add(models.Membership(workspace_id=workspace_id, user_id=invited.id, role=payload.role))
     log_activity(db, workspace_id, user.id, "member_added", invited.email)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="User is already a workspace member.") from exc
     return {"user_id": invited.id, "email": invited.email, "role": payload.role}
 
 

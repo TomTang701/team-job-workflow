@@ -130,4 +130,27 @@ foreach ($requiredAction in @("status_changed", "task_completed", "comment_added
     }
 }
 
+$root = Split-Path -Parent $PSScriptRoot
+$pythonCandidates = @(
+    $env:TJW_CONTRACT_PYTHON,
+    (Join-Path $root ".venv\Scripts\python.exe")
+)
+$python = $pythonCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
+if (-not $python) {
+    $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+    if ($null -eq $pythonCommand) {
+        $pythonCommand = Get-Command python3 -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $pythonCommand) {
+        $python = $pythonCommand.Source
+    }
+}
+if (-not $python) {
+    throw "Python is required for the Compose concurrency contract smoke test."
+}
+& $python (Join-Path $root "tools\compose_concurrency_smoke.py") --base-url $baseUrl
+if ($LASTEXITCODE -ne 0) {
+    throw "Compose concurrency contract smoke test failed with exit code $LASTEXITCODE."
+}
+
 Write-Host "Compose HTTP contract smoke test passed." -ForegroundColor Green
