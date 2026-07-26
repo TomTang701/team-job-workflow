@@ -10,7 +10,7 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     throw "Docker Desktop is required for the browser smoke test."
 }
 
-if (-not (Get-Command node.exe -ErrorAction SilentlyContinue)) {
+if ($env:OS -eq "Windows_NT" -and -not (Get-Command node.exe -ErrorAction SilentlyContinue)) {
     $machinePath = [Environment]::GetEnvironmentVariable("Path", "Machine")
     $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
     $env:Path = "$machinePath;$userPath;$env:Path"
